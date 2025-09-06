@@ -14,11 +14,18 @@ uvicorn microservice_servicerequest.main:app --reload
 
 # git Command...
 # Subir al Repositorio:
+
+  # saber branch
+git branch
+  # saber status
+git status
+
+
 git init
 git remote add origin https://github.com/Nico-jimenez16/On-Demand-MicroserviceRequest.git
 git add .
 git commit -m "Conexion con la base de datos"
-git branch -M main
+git branch -M main 
 git push -u origin main
 
 # Crear otra Rama:

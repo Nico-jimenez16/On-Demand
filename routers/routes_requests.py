@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from database import get_database
-from schemas.request import RequestCreate, RequestOut
-from services import request_service
-from core.security import get_current_user
+from ..database import get_database
+from ..schemas.request import RequestCreate, RequestOut
+from ..services import request_service
+from ..core.security import get_current_user
 
 router = APIRouter()
 
+@router.get("/", response_model=list[RequestOut])
+async def list_requests(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    return await request_service.list_requests(db)
 
 @router.post("/", response_model=RequestOut)
 async def create_request(

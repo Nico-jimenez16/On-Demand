@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
-from core.config import settings
+from .core.config import settings
 
 # MongoDB configuration
 MONGODB_URL = settings.MONGODB_URL
@@ -15,7 +15,7 @@ sync_client = MongoClient(MONGODB_URL)
 sync_database = sync_client[DATABASE_NAME]
 
 # Collections
-service_requests_collection = database["service_requests"]
+service_requests_collection = database["ServiceRequest"]
 service_assignments_collection = database["service_assignments"]
 
 def get_database():

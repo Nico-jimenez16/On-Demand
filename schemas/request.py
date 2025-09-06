@@ -2,43 +2,53 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 from bson import ObjectId
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import core_schema
 
-
+# --------------------------
+# Clase para manejar ObjectId
+# --------------------------
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, source_type, handler: GetCoreSchemaHandler):
+        return core_schema.no_info_after_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.to_string_ser_schema(),
+        )
 
     @classmethod
     def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
+        if isinstance(v, ObjectId):
+            return v
+        if isinstance(v, str) and ObjectId.is_valid(v):
+            return ObjectId(v)
+        raise ValueError("Invalid ObjectId")
 
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
-
-
+# --------------------------
+# Modelo para crear solicitudes
+# --------------------------
 class RequestCreate(BaseModel):
     title: str
     description: str
     location: str
     time_window: str
 
-
+# --------------------------
+# Modelo para respuestas
+# --------------------------
 class RequestOut(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
     title: str
     description: str
     location: str
     time_window: str
-    status: str
-    created_at: datetime
-    client_id: int
+    status: str = "PENDING"
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    client_id: str  # si tus documentos MongoDB guardan el id del cliente como string
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, datetime: lambda dt: dt.isoformat()},
+    }

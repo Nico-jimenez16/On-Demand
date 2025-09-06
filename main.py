@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers.routes_requests import router as requests_router
-from startup_shutdown import startup_event, shutdown_event
-from core.config import settings
+from .routers.routes_requests import router as requests_router
+from .startup_shutdown import startup_event, shutdown_event
+from .core.config import settings
 
 app = FastAPI(
     title="Service Requests Microservice",

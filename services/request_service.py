@@ -24,7 +24,7 @@ async def create_request(db: AsyncIOMotorDatabase, req: RequestCreate, client_id
     return ServiceRequest(**request_data)
 
 # type: ignore
-async def list_requests(db: AsyncIOMotorDatabase) -> List[ServiceRequest]:
+async def  list_requests(db: AsyncIOMotorDatabase) -> List[ServiceRequest]:
     cursor = db[settings.COLLECTION_NAME].find()
     requests = []
     async for doc in cursor:

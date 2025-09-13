@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
-from .core.config import settings
+from ..config import settings
 
 # MongoDB configuration
 MONGODB_URL = settings.MONGODB_URL

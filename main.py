@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routers.routes_requests import router as requests_router
-from .startup_shutdown import startup_event, shutdown_event
+from .core.db.startup_shutdown import startup_event, shutdown_event
 from .core.config import settings
 
 app = FastAPI(
-    title="Service Requests Microservice",
-    version="1.0.0"
+    title=settings.app_name,
+    description=settings.app_description,
+    version=settings.app_version,
 )
 
 # CORS middleware usando settings
@@ -26,3 +27,7 @@ app.include_router(
     prefix="/v1/requests",
     tags=["Requests"]
 )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("api_gateway.main:app", host="127.0.0.3", port=settings.app_port, reload=True)

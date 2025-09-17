@@ -1,49 +1,74 @@
 from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from ..schemas.request import RequestCreate, RequestOut
-from ..services import request_service
+from ..services.request_service import RequestService
 from ..core.security import get_current_user
-from ..core.db.database import get_database
-
+from ..core.db.database import get_service_requests_collection
+from ..core.repositories.request_repository import ServiceRequestRepository
+from ..core.config import settings
 
 router = APIRouter()
 
+def get_service_requests_repository(
+    collection=Depends(get_service_requests_collection)
+) -> ServiceRequestRepository:
+    """Proporciona una instancia del repositorio de solicitudes de servicio."""
+    return ServiceRequestRepository(db=collection.database, collection_name=settings.COLLECTION_NAME)
+
+def get_request_service(
+    repository: ServiceRequestRepository = Depends(get_service_requests_repository)
+) -> RequestService:
+    """Proporciona una instancia del servicio de solicitudes de servicio."""
+    return RequestService(repository)
+
 @router.get("/", response_model=list[RequestOut])
 async def list_requests(
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    service: RequestService = Depends(get_request_service),
 ):
-    return await request_service.list_requests(db)
+    """
+    Obtiene todas las solicitudes de servicio.
+    """
+    return await service.list_requests()
 
 @router.post("/", response_model=RequestOut)
 async def create_request(
     req: RequestCreate,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    service: RequestService = Depends(get_request_service)
 ):
-    if current_user["role"] != "client":
+    """
+    Crea una nueva solicitud de servicio.
+    Solo clientes pueden crear solicitudes.
+    """
+    if current_user["type"] != "cliente":
         raise HTTPException(status_code=403, detail="Only clients can create requests")
-    return await request_service.create_request(db, req, client_id=current_user["id"])
-
+    
+    return await service.create_request(req, client_id=current_user["id"])
 
 @router.get("/available", response_model=list[RequestOut])
 async def get_available_requests(
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    service: RequestService = Depends(get_request_service)
 ):
+    """
+    Obtiene todas las solicitudes de servicio disponibles.
+    Solo proveedores pueden ver solicitudes disponibles.
+    """
     if current_user["role"] != "provider":
         raise HTTPException(status_code=403, detail="Only providers can view requests")
-    return await request_service.list_available_requests(db)
-
+    
+    return await service.list_available_requests()
 
 @router.post("/{request_id}/accept", response_model=RequestOut)
 async def accept_request(
     request_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    service: RequestService = Depends(get_request_service)
 ):
+    """
+    Permite a un proveedor aceptar una solicitud de servicio pendiente.
+    Solo proveedores pueden aceptar solicitudes.
+    """
     if current_user["role"] != "provider":
         raise HTTPException(status_code=403, detail="Only providers can accept requests")
-    request = await request_service.accept_request(db, request_id, provider_id=current_user["id"])
-    if not request:
-        raise HTTPException(status_code=404, detail="Request not found or not available")
-    return request
+    
+    return await service.accept_request(request_id, provider_id=current_user["id"])

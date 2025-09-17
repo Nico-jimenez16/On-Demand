@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_description: str
     app_version: str
     app_port: int
+    
 
 
     MONGODB_URL: str

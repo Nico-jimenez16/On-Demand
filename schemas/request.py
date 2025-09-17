@@ -4,6 +4,8 @@ from typing import Optional
 from bson import ObjectId
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
+from ..models.service_request  import StatusEnum
+
 
 # --------------------------
 # Clase para manejar ObjectId
@@ -33,6 +35,7 @@ class RequestCreate(BaseModel):
     description: str
     location: str
     time_window: str
+    status: str = StatusEnum.PENDING
 
 # --------------------------
 # Modelo para respuestas
@@ -43,12 +46,12 @@ class RequestOut(BaseModel):
     description: str
     location: str
     time_window: str
-    status: str = "PENDING"
+    status: StatusEnum
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     client_id: str  # si tus documentos MongoDB guardan el id del cliente como string
 
     model_config = {
-        "populate_by_name": True,
+        "populate_by_name": True, 
         "arbitrary_types_allowed": True,
         "json_encoders": {ObjectId: str, datetime: lambda dt: dt.isoformat()},
     }

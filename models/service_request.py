@@ -1,7 +1,16 @@
 from pydantic import BaseModel, Field
+from enum import Enum
 from typing import Optional
 from datetime import datetime
 from bson import ObjectId
+
+
+# Definición del Enum para los estados
+class StatusEnum(str, Enum):
+    PENDING = "pending"
+    ASSIGNED = "assigned"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
 
 
 class PyObjectId(str):
@@ -26,7 +35,7 @@ class ServiceRequest(BaseModel):
     description: str
     location: str
     time_window: str
-    status: str
+    status: StatusEnum
     client_id: str
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 

@@ -1,71 +1,71 @@
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from ..models.service_request import ServiceRequest, ServiceAssignment
-from ..schemas.request import RequestCreate
-from bson import ObjectId
-from datetime import datetime
+# microservice_servicerequest/services/request_service.py
 from typing import List
+from ..models.service_request import ServiceRequest
+from ..schemas.request import RequestCreate
 from ..core.config import settings
+from ..core.exceptions import RequestNotPendingError, RequestNotFoundException, InvalidIdError
+from ..core.repositories.request_repository import ServiceRequestRepository
+from datetime import datetime
+from ..models.service_request import StatusEnum
 
+class RequestService:
+    """
+    Clase de servicio para la lógica de negocio de solicitudes de servicio.
+    Utiliza el patrón Repository para abstraer el acceso a la base de datos.
+    """
+    def __init__(self, repository: ServiceRequestRepository):
+        self.repository = repository
 
-async def create_request(db: AsyncIOMotorDatabase, req: RequestCreate, client_id: int):
-    request_data = {
-        "title": req.title,
-        "description": req.description,
-        "location": req.location,
-        "time_window": req.time_window,
-        "client_id": client_id,
-        "status": settings.STATUS_PENDING,
-        "created_at": datetime.utcnow()
-    }
-    
-    result = await db[settings.COLLECTION_NAME].insert_one(request_data)
-    request_data["_id"] = result.inserted_id
-    
-    return ServiceRequest(**request_data)
-
-# type: ignore
-async def  list_requests(db: AsyncIOMotorDatabase) -> List[ServiceRequest]:
-    cursor = db[settings.COLLECTION_NAME].find()
-    requests = []
-    async for doc in cursor:
+    async def create_request(self, req: RequestCreate, client_id: int) -> ServiceRequest:
+        """Crea una nueva solicitud de servicio con el estado inicial 'pending'."""
+        request_data = {
+            "title": req.title,
+            "description": req.description,
+            "location": req.location,
+            "time_window": req.time_window,
+            "client_id": client_id,
+            "status": StatusEnum.PENDING,
+            "created_at": datetime.utcnow()
+        }
         try:
-            requests.append(ServiceRequest(**doc))
-        except Exception as e:
-            print("ERROR PARSEANDO DOC:", e)
-    return requests
+            return await self.repository.create(request_data)
+        except InvalidIdError:
+            raise RequestNotFoundException(detail=f"Create_Request with not found.")
 
-async def list_available_requests(db: AsyncIOMotorDatabase) -> List[ServiceRequest]:
-    cursor = db[settings.COLLECTION_NAME].find({"status": "pending"})
-    requests = []
-    async for doc in cursor:
-        print("DOC ENCONTRADO:", doc)  # 👈 debug
+
+    async def list_requests(self) -> List[ServiceRequest]:
+        return await self.repository.get_all()
+
+    async def list_available_requests(self) -> List[ServiceRequest]:
+        """Obtiene todas las solicitudes de servicio con estado 'pending'."""
+        return await self.repository.find_available_requests()
+
+    async def accept_request(self, request_id: str, provider_id: int) -> ServiceRequest:
+        """
+        Permite a un proveedor aceptar una solicitud de servicio pendiente.
+        
+        Levanta excepciones si la solicitud no se encuentra o no está pendiente.
+        """
         try:
-            requests.append(ServiceRequest(**doc))
-        except Exception as e:
-            print("ERROR PARSEANDO DOC:", e)
-    return requests
+            request = await self.repository.get_by_id(request_id)
+            if not request:
+                raise RequestNotFoundException()
+            
+            if request.status != StatusEnum.PENDING:
+                raise RequestNotPendingError()
 
+            assignment_data = {
+                "request_id": request_id,
+                "provider_id": provider_id,
+                "status": StatusEnum.ASSIGNED,
+                "created_at": datetime.utcnow()
+            }
+            await self.repository.create_assignment(assignment_data)
 
-async def accept_request(db: AsyncIOMotorDatabase, request_id: str, provider_id: int):
-    # Find the request
-    request_doc = await db[settings.COLLECTION_NAME].find_one({"_id": ObjectId(request_id)})
-    if not request_doc or request_doc.get("status") != "pending":
-        return None
-
-    # Create assignment
-    assignment_data = {
-        "request_id": request_id,
-        "provider_id": provider_id,
-        "status": "accepted"
-    }
-    await db[settings.COLLECTION_NAME].insert_one(assignment_data)
-
-    # Update request status
-    await db[settings.COLLECTION_NAME].update_one(
-        {"_id": ObjectId(request_id)},
-        {"$set": {"status": "assigned"}}
-    )
-
-    # Return updated request
-    updated_request = await db[settings.COLLECTION_NAME].find_one({"_id": ObjectId(request_id)})
-    return ServiceRequest(**updated_request)
+            updated_request = await self.repository.update_status(request_id, StatusEnum.ASSIGNED)
+            if not updated_request:
+                raise RequestNotFoundException()
+            
+            return updated_request
+        except InvalidIdError:
+            raise RequestNotFoundException(detail=f"Request with ID {request_id} not found.")

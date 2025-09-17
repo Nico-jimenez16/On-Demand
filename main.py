@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
 from .routers.routes_requests import router as requests_router
-from .core.db.startup_shutdown import startup_event, shutdown_event
 from .core.config import settings
+from .core.db.database import client  # Importa el cliente de la base de datos
 
 app = FastAPI(
     title=settings.app_name,
@@ -10,7 +12,22 @@ app = FastAPI(
     version=settings.app_version,
 )
 
-# CORS middleware usando settings
+# Manejadores de excepciones para un control de errores robusto
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": exc.detail},
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Internal Server Error"},
+    )
+
+# Middleware CORS para manejar las peticiones de diferentes orígenes
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOW_ORIGINS.split(","),
@@ -19,9 +36,18 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS.split(","),
 )
 
-app.add_event_handler("startup", startup_event)
-app.add_event_handler("shutdown", shutdown_event)
+# Eventos de inicio y apagado para la conexión a la base de datos
+@app.on_event("startup")
+async def startup_db_client():
+    """Conecta el cliente de MongoDB al iniciar la aplicación."""
+    app.mongodb_client = client
 
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    """Cierra la conexión de MongoDB al apagar la aplicación."""
+    app.mongodb_client.close()
+
+# Inclusión del router principal de solicitudes
 app.include_router(
     requests_router, 
     prefix="/v1/requests",
